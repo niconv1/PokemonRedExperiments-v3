@@ -1,0 +1,73 @@
+__pycache__
+.DS_Store
+rollouts
+*.gb
+*.ram
+.ipynb_checkpoints
+raw_documentation
+*.pem
+_autoplay.mp4
+session_*
+.env
+PokemonRed.gb.state
+venv*
+.python-version
+
+# ============================================================
+# Pokemon Red AI V3 - local/runtime files
+# ============================================================
+
+# ROM
+PokemonRed.gb
+*.gb
+
+# Emulator / persistent state
+*.state
+v2/runs/persistent_agent_1*
+
+# PPO checkpoints / TensorBoard
+v2/runs/poke_*_steps.zip
+v2/runs/poke_ppo_*/
+v2/runs/histogram/
+v2/runs/events.out.tfevents.*
+
+# Live viewer runtime output
+v2/runs/curframe_*.jpeg
+v2/runs/curframe_*.jpg
+v2/runs/curframe_*.json
+
+# Logs
+v2/pokemon_training.log
+v2/pokemon_training_*.log
+v2/pokemon_training_before_*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local backups
+v2/persistent_backups/
+v2/readonly_agent1_backups/
+v2/*.before_*
+v2/*.backup_*
+v2/*.backup
+
+# Oude tijdelijke installatie/fix scripts
+v2/fix_*.sh
+v2/install_persistent_agent1*.sh
+v2/migrate_agent1_readonly_ppo.sh
+v2/migrate_agent1_readonly_continuous_v2.sh
+v2/pokemonred_v2_live_stats_install.sh
+v2/update_live_last_flag.sh
+
+# Oude mislukte V3 installers
+v2/install_agent1_readonly_continuous_fresh_zero.sh
+v2/install_pokemonred_v3_fresh_zero_FIXED.sh
+
+# Archives
+*.tar.gz
+*.sha256
+v2/runs/poke_*.zip
+poke_*_steps.zip
+poke_*.zip
