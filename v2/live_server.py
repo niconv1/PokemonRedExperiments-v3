@@ -7,6 +7,7 @@ import re
 BASE = Path(__file__).resolve().parent
 ROOT = BASE / "runs"
 LOG_FILE = BASE / "pokemon_training.log"
+AGENT1_STATUS_FILE = ROOT / "persistent_agent_1_worker_status.json"
 
 HTML = r"""<!DOCTYPE html>
 <html lang="nl">
@@ -116,6 +117,12 @@ let items = [];
 let current = 0;
 let globalFps = null;
 let totalPpoSteps = null;
+let explorerFps = null;
+let explorerPolicySteps = null;
+let explorerTrainEnvs = null;
+let explorerTargetRatio = null;
+let explorerAheadSteps = null;
+let explorerThrottled = null;
 
 function formatNumber(value) {
     if (value === undefined || value === null) {
@@ -136,6 +143,8 @@ function formatMeta(meta) {
         return [
             "PPO FPS     : " + (globalFps ?? "-"),
             "PPO steps   : " + formatInt(totalPpoSteps),
+            "Explorer FPS: " + (explorerFps ?? "-"),
+            "Auto balance : " + (explorerTargetRatio ?? "-") + "x",
             "",
             "Metadata wordt opgebouwd..."
         ].join("\n");
@@ -145,6 +154,13 @@ function formatMeta(meta) {
         "PPO FPS     : " + (globalFps ?? "-"),
         "Steps       : " + formatInt(meta.step),
         "PPO steps   : " + formatInt(totalPpoSteps),
+        ...(meta.persistent ? [
+            "Explorer FPS: " + (explorerFps ?? "-"),
+            "Policy sync : " + formatInt(explorerPolicySteps),
+            "Auto target : " + (explorerTargetRatio ?? "-") + "x",
+            "Ahead steps : " + (explorerAheadSteps ?? "-"),
+            "Throttle    : " + String(explorerThrottled ?? false)
+        ] : []),
         "Flags       : " + (meta.flags ?? "-"),
         "Last flag   : " + (meta.last_flag ?? "-"),
         "Badges      : " + (meta.badges ?? "-"),
@@ -166,6 +182,12 @@ async function loadData() {
         items = data.items || [];
         globalFps = data.global_fps;
         totalPpoSteps = data.total_ppo_steps;
+        explorerFps = data.explorer_fps;
+        explorerPolicySteps = data.explorer_policy_steps;
+        explorerTrainEnvs = data.explorer_train_envs;
+        explorerTargetRatio = data.explorer_target_ratio;
+        explorerAheadSteps = data.explorer_ahead_steps;
+        explorerThrottled = data.explorer_throttled;
 
         if (current >= items.length) {
             current = Math.max(0, items.length - 1);
@@ -173,8 +195,11 @@ async function loadData() {
 
         document.getElementById("status").textContent =
             "Actieve agents: " + items.length +
-            " | PPO-train agents: 11 | Explorer: 1 READ-ONLY" +
+            " | PPO-train agents: " + (explorerTrainEnvs ?? Math.max(0, items.length - 1)) +
+            " | Explorer: 1 READ-ONLY AUTO" +
             " | PPO FPS: " + (globalFps ?? "-") +
+            " | Explorer FPS: " + (explorerFps ?? "-") +
+            " | target: " + (explorerTargetRatio ?? "-") + "x" +
             " | PPO steps: " + formatInt(totalPpoSteps);
 
         drawAgent();
@@ -200,7 +225,7 @@ function drawAgent() {
 
     document.getElementById("name").textContent =
         "Agent " + shownAgentNumber +
-        ((item.meta && item.meta.persistent) ? " [PERSISTENT READ-ONLY]" : "");
+        ((item.meta && item.meta.persistent) ? " [PERSISTENT READ-ONLY AUTO]" : "");
 
     document.getElementById("counter").textContent =
         (current + 1) + " / " + items.length;
@@ -309,6 +334,17 @@ def read_meta(path):
     except Exception:
         return None
 
+
+def read_agent1_worker_status():
+    if not AGENT1_STATUS_FILE.exists():
+        return {}
+
+    try:
+        data = json.loads(AGENT1_STATUS_FILE.read_text())
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(
@@ -354,10 +390,17 @@ class Handler(SimpleHTTPRequestHandler):
             )
 
             training = parse_training_stats()
+            explorer = read_agent1_worker_status()
 
             payload = {
                 "global_fps": training["fps"],
                 "total_ppo_steps": training["total_timesteps"],
+                "explorer_fps": explorer.get("fps"),
+                "explorer_policy_steps": explorer.get("policy_timesteps"),
+                "explorer_train_envs": explorer.get("num_train_envs"),
+                "explorer_target_ratio": explorer.get("target_ratio"),
+                "explorer_ahead_steps": explorer.get("balance_ahead_steps"),
+                "explorer_throttled": explorer.get("throttled"),
                 "items": items,
             }
 
@@ -391,7 +434,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 print("Pokemon Red AI live viewer")
 print("1 agent tegelijk")
-print("Groter live beeld + Last flag + PPO steps")
+print("V3.2 viewer: PPO FPS + auto-balanced Explorer + policy sync")
 print("Poort 8080")
 
 ThreadingHTTPServer(

@@ -71,3 +71,12 @@ v2/install_pokemonred_v3_fresh_zero_FIXED.sh
 v2/runs/poke_*.zip
 poke_*_steps.zip
 poke_*.zip
+# Pokemon Red AI V3 local runtime/development
+v2/v31_backups/
+v2/v32_backups/
+v2/install_pokemonred_v3_1*.sh
+v2/start_pokemonred_v3_1.sh
+v2/stop_pokemonred_v3_1.sh
+v2/pokemon_training*.log
+v2/runs/curframe_*
+/prepare_pokemonred_v3_clean_zero_git.sh

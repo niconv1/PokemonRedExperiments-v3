@@ -1,3 +1,4 @@
+import os
 import sys
 from os.path import exists
 from pathlib import Path
@@ -17,9 +18,9 @@ def make_env(rank, env_conf, seed=0):
     """
     Create one PPO TRAINING environment.
 
-    rank 0..10 map to logical Agents 2..12.
-    Agent 1 is intentionally NOT part of this VecEnv; it runs read-only in
-    PersistentExplorerCallback and therefore cannot write experience to PPO.
+    rank 0..N-1 maps to logical Agents 2..(N+1).
+    Agent 1 is intentionally NOT part of this VecEnv. In V3.2 it runs in a
+    separate auto-balanced read-only process and cannot write to PPO.
     """
 
     def _init():
@@ -32,7 +33,7 @@ def make_env(rank, env_conf, seed=0):
         env = StreamWrapper(
             RedGymEnv(rank_conf),
             stream_metadata={
-                "user": "v2-default",
+                "user": "v3.1-local",
                 "env_id": logical_agent_number,
                 "color": "#447799",
                 "extra": "",
@@ -70,8 +71,15 @@ if __name__ == "__main__":
 
     print(env_config)
 
-    # PPO receives data ONLY from Agents 2-12.
-    num_train_envs = 11
+    # Total visible agents includes the read-only Agent 1.
+    # Default = 12 (1 explorer + 11 PPO trainers).
+    # Example for a future 32-GB setup:
+    #   POKEMON_TOTAL_AGENTS=20 python baseline_fast_v2.py
+    total_agents = int(os.environ.get("POKEMON_TOTAL_AGENTS", "12"))
+    if total_agents < 2:
+        raise ValueError("POKEMON_TOTAL_AGENTS must be >= 2")
+
+    num_train_envs = total_agents - 1
     env = SubprocVecEnv(
         [make_env(i, env_config) for i in range(num_train_envs)]
     )
@@ -82,10 +90,29 @@ if __name__ == "__main__":
         name_prefix="poke",
     )
 
+    agent1_target_ratio = float(
+        os.environ.get("AGENT1_SPEED_RATIO", "1.0")
+    )
+    agent1_lead_steps = int(
+        os.environ.get("AGENT1_LEAD_STEPS", "128")
+    )
+
+    persistent_explorer_callback = PersistentExplorerCallback(
+        env_config,
+        sess_path,
+        sync_check_steps=250,
+        status_interval_seconds=2.0,
+        nice_value=8,
+        num_train_envs=num_train_envs,
+        target_ratio=agent1_target_ratio,
+        lead_steps=agent1_lead_steps,
+        verbose=1,
+    )
+
     callbacks = [
         checkpoint_callback,
         TensorboardCallback(sess_path),
-        PersistentExplorerCallback(env_config, sess_path, verbose=1),
+        persistent_explorer_callback,
     ]
 
     if use_wandb_logging:
@@ -96,7 +123,7 @@ if __name__ == "__main__":
         run = wandb.init(
             project="pokemon-train",
             id=sess_id,
-            name="v2-a",
+            name="v3.2-auto-balanced-agent1",
             config=env_config,
             sync_tensorboard=True,
             monitor_gym=True,
@@ -137,17 +164,38 @@ if __name__ == "__main__":
 
     print(model.policy)
     print(
-        f"PPO training envs: {num_train_envs} (logical Agents 2-12); "
-        "Agent 1 = read-only persistent explorer (continuous world + counters)"
+        f"Total agents: {total_agents}; PPO training envs: {num_train_envs} "
+        f"(logical Agents 2-{total_agents}); "
+        "Agent 1 = AUTO-BALANCED ASYNC read-only persistent explorer; "
+        f"target={agent1_target_ratio:.2f}x"
     )
 
-    model.learn(
-        total_timesteps=ep_length * num_train_envs * 10000,
-        callback=CallbackList(callbacks),
-        tb_log_name="poke_ppo",
-        # Preserve PPO's historical timestep counter when resuming a checkpoint.
-        reset_num_timesteps=not resumed_from_checkpoint,
-    )
+    try:
+        model.learn(
+            total_timesteps=ep_length * num_train_envs * 10000,
+            callback=CallbackList(callbacks),
+            tb_log_name="poke_ppo",
+            # Preserve PPO's historical timestep counter when resuming a checkpoint.
+            reset_num_timesteps=not resumed_from_checkpoint,
+        )
+    except KeyboardInterrupt:
+        # V3.2 keeps the V3.1 improvement: a clean Ctrl-C now preserves the exact in-memory
+        # PPO policy instead of falling back to the previous periodic checkpoint.
+        interrupt_base = sess_path / f"poke_{int(model.num_timesteps)}_steps"
+        model.save(str(interrupt_base))
+        print(
+            "\n[V3.2] Ctrl-C checkpoint saved: "
+            f"{interrupt_base}.zip",
+            flush=True,
+        )
+    finally:
+        # Idempotent: also covers KeyboardInterrupt paths where SB3 itself
+        # did not reach callback.on_training_end().
+        persistent_explorer_callback.close()
+        try:
+            env.close()
+        except Exception:
+            pass
 
-    if use_wandb_logging:
-        run.finish()
+        if use_wandb_logging:
+            run.finish()
