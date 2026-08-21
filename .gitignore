@@ -80,3 +80,28 @@ v2/stop_pokemonred_v3_1.sh
 v2/pokemon_training*.log
 v2/runs/curframe_*
 /prepare_pokemonred_v3_clean_zero_git.sh
+v2/runs/breadcrumb_routes.json
+v2/runs/breadcrumb_routes.json.lock
+v2/runs/breadcrumb_routes.json.tmp
+v2/breadcrumb_backups/
+v2/target_mastery_backups/
+v2/fast_breadcrumb_backups/
+
+# Pokemon Red AI V3 - central RAM breadcrumb runtime
+v2/bc_manager.log
+v2/bc_tensorboard_history.log
+v2/runs/breadcrumb_routes_v3_ram.json
+v2/runs/bc_tensorboard_history.jsonl
+v2/runs/bc_manager.sock
+v2/tensorboard_bc_plugin/*.egg-info/
+v2/tensorboard_bc_plugin/**/*.egg-info/
+
+# Old/local breadcrumb experiments (not part of the V3 release)
+v2/breadcrumb_mastery_backups/
+v2/breadcrumb_memory.py
+v2/install_pokemonred_v3_auto_breadcrumbs.sh
+v2/install_pokemonred_v3_breadcrumb_mastery_decay.sh
+v2/install_pokemonred_v3_breadcrumb_mastery_decay_FIXED.sh
+v2/install_pokemonred_v3_fast_breadcrumb_cache.sh
+v2/install_pokemonred_v3_fast_breadcrumb_cache_FIXED.sh
+v2/install_pokemonred_v3_target_mastery_shortest.sh
